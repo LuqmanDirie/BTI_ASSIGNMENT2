@@ -47,6 +47,17 @@ module.exports = {
             }
         });
     },
+    
+    getPublishedPostsByCategory: function(category) {
+        return new Promise((resolve, reject) => {
+            const publishedFilteredPosts = posts.filter(post => post.published === true && post.category == category);
+            if (publishedFilteredPosts.length === 0) {
+                reject("No published posts found for the category: " + category);
+            } else {
+                resolve(publishedFilteredPosts);
+            }
+        });
+    },
 
     getPostsByMinDate: function(minDateStr) {
         return new Promise((resolve, reject) => {
@@ -72,17 +83,12 @@ module.exports = {
 
     addPost: function(postData) {
         return new Promise((resolve, reject) => {
-            if (postData.published === undefined) {
-                postData.published = false;
-            } else {
-                postData.published = true;
-            }
-    
+            postData.published = !!postData.published;
             postData.id = posts.length + 1;
-    
+            let currentDate = new Date();
+            postData.postDate = currentDate.toISOString().split('T')[0];
             posts.push(postData);
-    
             resolve(postData);
         });
-    }
+    }    
 };
