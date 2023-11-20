@@ -5,7 +5,7 @@
  * from any other source* (including 3rd party web sites) or distributed
  *  to other students.*
  * 
- * * Name: __Luqman__Dirie___ Student ID: __108737222___ Date: __10/20/23__*
+ * * Name: __Luqman__Dirie___ Student ID: __108737222___ Date: __11/3/23__*
  * 
  * * Online (Cyclic) Link: ____https://sangria-iguana-hem.cyclic.cloud_______
  * 
@@ -17,6 +17,7 @@ const Handlebars = require('handlebars');
 const blogService = require('./blog-service.js');
 const express = require('express');
 const app = express();
+app.use(express.urlencoded({ extended: true }));
 const exphbs = require('express-handlebars');
 
 const multer = require("multer");
@@ -36,6 +37,13 @@ cloudinary.config({
 const upload = multer();
 
 app.use(express.static('public'));
+
+const formatDate = function(dateObj) {
+    let year = dateObj.getFullYear();
+    let month = (dateObj.getMonth() + 1).toString();
+    let day = dateObj.getDate().toString();
+    return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+};
 
 app.engine('.hbs', exphbs.engine({
     extname: '.hbs',
@@ -57,7 +65,8 @@ app.engine('.hbs', exphbs.engine({
             } else {
                 return options.fn(this);
             }
-        }
+        },
+        formatDate: formatDate
     }
 }));
 app.set('view engine', '.hbs');
@@ -69,6 +78,49 @@ app.use(function(req, res, next) {
     app.locals.viewingCategory = req.query.category;
     next();
 });
+
+
+
+app.get('/categories/add', (req, res) => {
+    res.render('addCategory');
+});
+
+app.post('/categories/add', (req, res) => {
+    blogService.addCategory({ name: req.body.name })
+    .then(() => {
+        res.redirect('/categories');
+    })
+    .catch(err => {
+        // Handle error
+        res.status(500).send("Unable to add category: " + err);
+    });
+});
+
+app.get('/categories/delete/:id', (req, res) => {
+    console.log("Attempting to delete category with ID:", req.params.id);
+    blogService.deleteCategoryById(req.params.id)
+        .then(() => res.redirect('/categories'))
+        .catch(err => {
+            console.error("Error when deleting category:", err);
+            res.status(500).send("Unable to Remove Category / Category not found");
+        });
+});
+
+app.get('/posts/delete/:id', (req, res) => {
+    console.log('Attempting to delete post with ID:', req.params.id);
+    blogService.deletePostById(req.params.id)
+    .then(() => {
+        res.redirect('/posts');
+    })
+    .catch(err => {
+        console.error('Error deleting post:', err);
+        res.status(500).send("Unable to Remove Post / Post not found");
+    });
+});
+
+
+
+
 
 app.get('/', (req, res) => {
    res.redirect('/about');
@@ -190,16 +242,21 @@ app.get('/posts', (req, res) => {
         getPosts = blogService.getAllPosts();
     }
 
-    getPosts.then(data => {
-        if (data && data.length > 0) {
-            res.render("posts", { posts: data });
+    getPosts.then(posts => {
+        // Convert Sequelize objects to plain objects
+        const plainPosts = posts.map(post => post.get({ plain: true }));
+
+        if (plainPosts.length > 0) {
+            res.render("posts", { posts: plainPosts });
         } else {
             res.render("posts", { message: "no results" });
         }
     }).catch(err => {
-        res.render("posts", { message: "no results", error: err });
+        console.error("Error retrieving posts:", err);
+        res.render("posts", { message: "Error: " + err });
     });
 });
+
 
 app.get('/post/:id', (req, res) => {
     blogService.getPostById(req.params.id)
@@ -216,17 +273,31 @@ app.get('/post/:id', (req, res) => {
 });
 
 app.get('/categories', (req, res) => {
-    blogService.getCategories()
-    .then(data => {
-      res.render("categories", { categories: data });
-    })
-    .catch(err => {
-      res.render("categories", { message: "no results" });
+    blogService.getCategories().then(categories => {
+        const plainData = categories.map(category => category.get({ plain: true }));
+        console.log(plainData);
+
+        if (plainData && plainData.length > 0) {
+            res.render("categories", { categories: plainData });
+        } else {
+            res.render("categories", { message: "no results" });
+        }
+    }).catch(err => {
+        res.render("categories", { message: "Error: " + err });
     });
-});  
+});
+
 
 app.get('/posts/add', (req, res) => {
-    res.render('addPost');
+    blogService.getCategories()
+    .then(categories => {
+        const plainCategories = categories.map(category => category.get({ plain: true }));
+        res.render('addPost', { categories: plainCategories });
+    })
+    .catch(err => {
+        console.error(err);
+        res.render('addPost', { categories: [] });
+    });
 });
 
 let streamUpload = (req) => {
